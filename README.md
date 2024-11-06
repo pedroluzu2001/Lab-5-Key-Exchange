@@ -249,10 +249,7 @@ by a, to get abG, and Bob will multiply by b, and also get abG. This will be the
 ### D.1
 In the following we will implement ECDH using the secp256k1 curve (as used in Bitcoin). Confirm that Bob and Alice will have the same shared key.
 
-In the following we will implement ECDH using the secp256k1 curve (as used in
-Bitcoin). Confirm that Bob and Alice will have the same shared key.
-
- Web link (ECDH): https://asecuritysite.com/hazmat/hashnew13
+Web link (ECDH): https://asecuritysite.com/hazmat/hashnew13
 
 ```
 from cryptography.hazmat.primitives import hashes
@@ -291,8 +288,143 @@ print ("\nBob's derived key: ",binascii.b2a_hex(Bob_derived_key).decode())
 print("Alice's derived key: ",binascii.b2a_hex(Alice_derived_key).decode())
 
 ```
+```
+Run the code and confirm that Bob and Alice will always get the same shared key.
+7
+Now modify the code to implement the SECP192R1 and also for the SECP521R1 curve. 
+What do you notice about the sizes of the keys created between the different curve types?
+```
+
+ ### D.2
+ The code to implement Curve 25519 for key exchange (X25519) is:
+```
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+import binascii
+import sys
+Bob_private_key = X25519PrivateKey.generate()
+Alice_private_key = X25519PrivateKey.generate()
+size=32 # 256 bit key
+Bob_shared_key = Bob_private_key.exchange(Alice_private_key.public_key())
+Bob_derived_key =
+HKDF(algorithm=hashes.SHA256(),length=size,salt=None,info=b'',backend=default_backend()).deri
+ve(Bob_shared_key)
+Alice_shared_key = Alice_private_key.exchange(Bob_private_key.public_key())
+Alice_derived_key =
+HKDF(algorithm=hashes.SHA256(),length=size,salt=None,info=b'',backend=default_backend()).deri
+ve(Alice_shared_key)
+print ("Name of curve: Curve 25519")
+vals =
+binascii.b2a_hex(Bob_private_key.private_bytes(serialization.Encoding.Raw,serialization.Priva
+teFormat.Raw,serialization.NoEncryption()))
+print (f"\nBob private key value: {vals}")
+vals=Bob_private_key.public_key()
+enc_point=binascii.b2a_hex(vals.public_bytes(encoding=serialization.Encoding.DER,format=seria
+lization.PublicFormat.SubjectPublicKeyInfo)).decode()
+print("Bob's public key: ",enc_point)
+vals =
+binascii.b2a_hex(Alice_private_key.private_bytes(serialization.Encoding.Raw,serialization.Pri
+vateFormat.Raw,serialization.NoEncryption()))
+print (f"\nAlice private key value: {vals}")
+vals=Alice_private_key.public_key()
+enc_point=binascii.b2a_hex(vals.public_bytes(encoding=serialization.Encoding.DER,format=seria
+lization.PublicFormat.SubjectPublicKeyInfo)).decode()
+print("Alice's public key: ",enc_point)
+print ("\nBob's derived key: ",binascii.b2a_hex(Bob_derived_key).decode())
+print("Alice's derived key: ",binascii.b2a_hex(Alice_derived_key).decode())
+
+```
+```
+Do Bob and Alice end up with the same key?
+
+In this case we have DER format for the public key. This normally starts with a "03". From 
+the test run, copy the DER value and paste it here:
+https://asecuritysite.com/digitalcert/sigs5
+
+Can you view the public key point?
+
+With the DER form, you should find there is an OID of "1.3.101.110". From an Internet 
+search, what does "1.3.101.110" represent?
+
+If you change the "DER" to "PEM" how does it change the viewing of the keys (remember to 
+remove binascii.b2a_hex() method)?
+```
 
 
- 
+
+
+## E Simple Key Distribution Centre (KDC)
+
+Rather than using key exchange, we can setup a KDC, and where Bob and Alice can have longterm keys. These can be used to generate a session key for them to use. Enter the following Python program, and prove its operation:
+
+```
+import hashlib
+import sys
+import binascii
+import Padding
+import random
+from Crypto.Cipher import AES
+from Crypto import Random
+msg="test"
+def encrypt(word,key, mode):
+plaintext=pad(word)
+encobj = AES.new(key,mode)
+return(encobj.encrypt(plaintext))
+def decrypt(ciphertext,key, mode):
+encobj = AES.new(key,mode)
+rtn = encobj.decrypt(ciphertext)
+return(rtn)
+def pad(s):
+extra = len(s) % 16
+if extra > 0:
+s = s + (' ' * (16 - extra))
+return s
+rnd = random.randint(1,2**128)
+keyA= hashlib.md5(str(rnd).encode()).digest()
+rnd = random.randint(1,2**128)
+keyB= hashlib.md5(str(rnd).encode()).digest()
+print('Long-term Key Alice=',binascii.hexlify(keyA))
+print('Long-term Key Bob=',binascii.hexlify(keyB))
+rnd = random.randint(1,2**128)
+keySession= hashlib.md5(str(rnd).encode()).hexdigest()
+ya = encrypt(keySession.encode(),keyA,AES.MODE_ECB)
+yb = encrypt(keySession.encode(),keyB,AES.MODE_ECB)
+print("Encrypted key sent to Alice:",binascii.hexlify(ya))
+print("Encrypted key sent to Bob:",binascii.hexlify(yb))
+decipherA = decrypt(ya,keyA,AES.MODE_ECB)
+decipherB = decrypt(yb,keyB,AES.MODE_ECB)
+print("Session key:",decipherA)
+print("Session key:",decipherB)
+
+```
+
+Web link (Simple KDC): https://asecuritysite.com/encryption/kdc01
+
+```
+The program above uses a shared 128-bit session key (generated by MD5). Now change the 
+program so that you generate a 256-bit session key. What are the changes made:
+
+```
+
+## F Challenge
+
+### F.1
+Bob and Alice agree on a g value of 5, and a prime number of 97. They then use the Diffie-Hellman key exchange method. Alice passes a value of 32, and Bob passes a value of 41. Can you determine the secret value that Bob and Alice have generated, and the resultant key value? Outline the code here:
+
+```
+What happens if we use a g value of 2? Why is there a problem?
+
+Hint: https://asecuritysite.com/encryption/pickg
+
+Can you now write a generate DH key cracker for any value of g, p, A (passed by Alice), and 
+B (passed by Bob) Outline code and run to evaluate the perform of our code with different 
+ranges of the prime number (p):
+
+```
+
+
 
 
